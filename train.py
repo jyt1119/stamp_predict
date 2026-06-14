@@ -1,3 +1,5 @@
+
+#train.py:
 """
 模型训练模块
 """
@@ -22,6 +24,7 @@ class EarlyStopping:
         self.counter = 0
         self.best_loss = float('inf')
         self.early_stop = False
+        self.best_val_ic = -float('inf')
     
     def __call__(self, val_loss: float) -> bool:
         if val_loss < self.best_loss - self.min_delta:
@@ -70,7 +73,8 @@ class Trainer:
         self.val_ics = []
         self.best_val_loss = float('inf')
         self.best_epoch = 0
-        
+        self.best_val_ic = -float('inf')
+
         # 输出目录
         self.output_dir = Path(config.OUTPUT_DIR)
     
@@ -127,7 +131,7 @@ class Trainer:
             total_loss += loss.item()
             
             all_preds.extend(torch.sigmoid(pred).cpu().numpy().flatten())
-            all_labels.extend(labels.cpu().numpy().flatten())
+            all_labels.extend(target.cpu().numpy().flatten())
         
         # 计算指标
         all_preds = np.array(all_preds)
@@ -144,8 +148,9 @@ class Trainer:
         mae = mean_absolute_error(all_labels, all_preds)
         
         # 方向胜率
-        pred_direction = np.sign(all_preds)
-        true_direction = np.sign(all_labels)
+        pred_direction = np.where(all_preds > 0.5, 1, -1)
+        true_direction = np.where(all_labels > 0, 1, -1)
+        
         valid = true_direction != 0
         if valid.sum() > 0:
             direction_acc = np.mean(pred_direction[valid] == true_direction[valid])
@@ -195,18 +200,18 @@ class Trainer:
             print(f"  Learning Rate:   {current_lr:.2e}")
             
             # 保存最佳模型
-            if val_metrics['loss'] < self.best_val_loss:
-                self.best_val_loss = val_metrics['loss']
+            if val_metrics['ic'] > self.best_val_ic:
+                self.best_val_ic = val_metrics['ic']
                 self.best_epoch = epoch + 1
                 self._save_checkpoint(epoch, val_metrics)
-                print(f"  ✓ 新的最佳模型 (loss: {val_metrics['loss']:.6f})")
+                print(f"  ✓ 新的最佳模型 (IC: {val_metrics['ic']:.4f})")
             
             # 早停检查
             if self.early_stopping(val_metrics['loss']):
                 print(f"\n早停触发！在第 {epoch + 1} 轮停止训练")
                 break
         
-        print(f"\n训练完成！最佳模型在第 {self.best_epoch} 轮, Val Loss: {self.best_val_loss:.6f}")
+        print(f"\n训练完成！最佳模型在第 {self.best_epoch} 轮, Val IC: {self.best_val_ic:.4f}")
         self._plot_curves()
         
         return self.train_losses, self.val_losses

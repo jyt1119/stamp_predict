@@ -1,3 +1,5 @@
+
+#model.py:
 """
 深度学习模型 - Transformer + GRU混合架构
 """
@@ -208,6 +210,8 @@ class AlphaNet(nn.Module):
         )
         
         self._init_weights()
+        # 初始化输出层偏置为0，避免初始倾向某一类
+        nn.init.constant_(self.output_head[-1].bias, 0.0)
     
     def _init_weights(self):
         """初始化权重"""
@@ -249,47 +253,3 @@ class AlphaNet(nn.Module):
         return output
 
 
-class SimpleMLP(nn.Module):
-    """简单MLP基线模型"""
-    
-    def __init__(self, input_dim: int, sequence_length: int = 60):
-        super().__init__()
-        self.flatten = nn.Flatten()
-        self.layers = nn.Sequential(
-            nn.Linear(input_dim * sequence_length, 512),
-            nn.ReLU(),
-            nn.Dropout(0.3),
-            nn.Linear(512, 256),
-            nn.ReLU(),
-            nn.Dropout(0.3),
-            nn.Linear(256, 128),
-            nn.ReLU(),
-            nn.Dropout(0.3),
-            nn.Linear(128, 1)
-        )
-    
-    def forward(self, x):
-        x = self.flatten(x)
-        return self.layers(x)
-
-
-class LSTMModel(nn.Module):
-    """LSTM基线模型"""
-    
-    def __init__(self, input_dim: int, hidden_dim: int = 128):
-        super().__init__()
-        self.lstm = nn.LSTM(
-            input_dim, hidden_dim, num_layers=2,
-            batch_first=True, bidirectional=True, dropout=0.2
-        )
-        self.output = nn.Sequential(
-            nn.Linear(hidden_dim * 2, 64),
-            nn.ReLU(),
-            nn.Dropout(0.3),
-            nn.Linear(64, 1)
-        )
-    
-    def forward(self, x):
-        lstm_out, _ = self.lstm(x)
-        last_out = lstm_out[:, -1, :]  # 取最后时刻
-        return self.output(last_out)

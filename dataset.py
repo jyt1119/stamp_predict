@@ -1,3 +1,4 @@
+
 #dataset.py：
 """
 数据集构建模块 - 滑动窗口采样、标准化、DataLoader创建
@@ -85,9 +86,18 @@ class StockDataset(Dataset):
                 features = np.nan_to_num(features, nan=0.0, posinf=0.0, neginf=0.0)
                 
                 cur_close = period_df['close'].iloc[i + self.sequence_length - 1]
-                future_close = period_df['close'].iloc[i + self.sequence_length + self.predict_horizon - 1]
-                label = np.float32((future_close - cur_close) / (cur_close + 1e-10))
-                
+                # 多周期标签加权
+                # 检查是否有足够数据计算各周期
+                max_horizon = 10
+                if i + self.sequence_length + max_horizon <= len(period_df):
+                    label_1d = (period_df['close'].iloc[i + self.sequence_length + 1 - 1] - cur_close) / (cur_close + 1e-10)
+                    label_5d = (period_df['close'].iloc[i + self.sequence_length + 5 - 1] - cur_close) / (cur_close + 1e-10)
+                    label_10d = (period_df['close'].iloc[i + self.sequence_length + 10 - 1] - cur_close) / (cur_close + 1e-10)
+                    label = np.float32(0.3 * label_1d + 0.4 * label_5d + 0.3 * label_10d)
+                else:
+                    # 数据不够10天，退回到原来的单周期标签
+                    future_close = period_df['close'].iloc[i + self.sequence_length + self.predict_horizon - 1]
+                    label = np.float32((future_close - cur_close) / (cur_close + 1e-10))
                 sample_date = period_df['trade_date'].iloc[i + self.sequence_length - 1]
                 
                 self.samples.append({

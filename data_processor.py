@@ -1,4 +1,5 @@
-#da'ta_processor.py：
+
+#data_processor.py：
 """
 数据处理模块 - 流式/分批加载以降低内存占用
 """
@@ -79,7 +80,7 @@ class DataProcessor:
         否则继续使用流式临时文件策略将数据按股票拆分入内存。
         """
         print("加载日频量价数据...")
-        date_range = self._get_date_range(start_date, end_date)
+        
         directory = self.config.DAILY_DIR
         if not directory.exists():
             print(f"  错误：目录不存在 {directory}")
@@ -87,15 +88,19 @@ class DataProcessor:
 
         cols = ['ts_code', 'open', 'high', 'low', 'close', 'vol', 'amount', 'pre_close', 'pct_chg']
         valid_codes = set(self.basic_info['ts_code'].astype(str).values)
-
+        
         max_stocks = getattr(self.config, 'MAX_STOCKS', None)
+    
         if max_stocks is not None:
             # 一次性按日读取少量列统计活跃度（使用 amount 或 vol）
             print(f"  检测到 MAX_STOCKS={max_stocks}，先统计活跃度选股...")
+            # 活跃度只用训练期统计，避免数据泄露
+            train_date_range = self._get_date_range(self.config.TRAIN_START, self.config.TRAIN_END)
+            date_range = self._get_date_range(start_date, end_date)
             from collections import defaultdict
             activity = defaultdict(float)
             use_col = 'amount'
-            for date in tqdm(date_range, desc="统计活跃度"):
+            for date in tqdm(train_date_range, desc="统计活跃度"):
                 file_path = directory / f"{pd.Timestamp(date).strftime('%Y%m%d')}.csv"
                 if not file_path.exists():
                     continue
@@ -173,6 +178,7 @@ class DataProcessor:
             print(f"  成功加载 {len(self.daily_data)} 只股票的量价数据 (top stocks)")
             return
 
+        date_range = self._get_date_range(start_date, end_date)
         # 否则保持原有流式按日分文件写入 tmp 再加载的逻辑（不变）
         # 原实现保留（你已有实现），此处直接调用原先的临时文件实现以避免重复粘贴
         # 为简洁起见，回退到临时文件实现：

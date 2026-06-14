@@ -1,7 +1,0 @@
-﻿data/
-outputs/
-__pycache__/
-*.pth
-*.pyc
-.DS_Store
-*.zip
